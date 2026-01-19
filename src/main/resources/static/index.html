@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>StreamVideo Platform</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #111;
+            color: #eee;
+            padding: 20px;
+        }
+
+        h1, h2 {
+            color: #00d1b2;
+        }
+
+        select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+        }
+
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+
+        .player {
+            flex: 3;
+        }
+
+        .recommendations {
+            flex: 1;
+            background: #1c1c1c;
+            padding: 10px;
+            border-radius: 6px;
+        }
+
+        video {
+            width: 100%;
+            max-height: 480px;
+            background: black;
+        }
+
+        .rec-item {
+            padding: 8px;
+            margin-bottom: 6px;
+            background: #2a2a2a;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .rec-item:hover {
+            background: #00d1b2;
+            color: black;
+        }
+    </style>
+</head>
+<body>
+
+<h1>🎥 StreamVideo Platform</h1>
+
+<!-- VIDEO SELECT DROPDOWN -->
+<label for="videoSelect">Select a video:</label>
+<select id="videoSelect">
+    <option value="">-- Select a video --</option>
+</select>
+
+<div class="container">
+    <!-- VIDEO PLAYER -->
+    <div class="player">
+        <video id="videoPlayer" controls></video>
+        <p id="status"></p>
+    </div>
+
+    <!-- RECOMMENDATIONS -->
+    <div class="recommendations">
+        <h2>Recommended</h2>
+        <div id="recommendationList"></div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = "http://localhost:8080/api";
+    const USER_ID = "u1"; // demo user
+
+    const videoSelect = document.getElementById("videoSelect");
+    const videoPlayer = document.getElementById("videoPlayer");
+    const status = document.getElementById("status");
+    const recommendationList = document.getElementById("recommendationList");
+
+    let currentVideoId = null;
+    let watchStartTime = null;
+
+    // 🔹 LOAD ALL VIDEOS INTO DROPDOWN
+    function loadAllVideos() {
+        fetch(`${API_BASE}/videos/getAllVideos`)
+            .then(res => res.json())
+            .then(videos => {
+                videos.forEach(video => {
+                    const option = document.createElement("option");
+                    option.value = video.videoId;
+                    option.textContent = `${video.title} (${video.category})`;
+                    videoSelect.appendChild(option);
+                });
+            });
+    }
+
+    // 🔹 PLAY SELECTED VIDEO
+    videoSelect.addEventListener("change", () => {
+        const videoId = videoSelect.value;
+        if (!videoId) return;
+
+        playVideo(videoId);
+    });
+
+    function playVideo(videoId) {
+        sendWatchEvent(); // send previous if any
+
+        currentVideoId = videoId;
+        watchStartTime = Date.now();
+
+        videoPlayer.src = `${API_BASE}/videos/watchSpecificVideo/${videoId}`;
+        videoPlayer.play();
+
+        status.innerText = "Playing video: " + videoId;
+    }
+
+    // 🔹 SEND WATCH EVENT
+    function sendWatchEvent() {
+        if (!currentVideoId || !watchStartTime) return;
+
+        const watchedSeconds = Math.floor((Date.now() - watchStartTime) / 1000);
+
+        fetch(`${API_BASE}/watchEvent`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "User-Id": USER_ID
+            },
+            body: JSON.stringify({
+                videoId: currentVideoId,
+                watchDurationSeconds: watchedSeconds
+            })
+        }).then(() => {
+            console.log("Watch event sent:", watchedSeconds);
+            loadRecommendations();
+        });
+
+        watchStartTime = null;
+    }
+
+    // 🔹 LOAD RECOMMENDATIONS
+    function loadRecommendations() {
+        fetch(`${API_BASE}/recommend/${USER_ID}`)
+            .then(res => res.json())
+            .then(data => {
+                recommendationList.innerHTML = "";
+
+                if (data.length === 0) {
+                    recommendationList.innerHTML = "<p>No recommendations yet</p>";
+                    return;
+                }
+
+                data.forEach(item => {
+                    const div = document.createElement("div");
+                    div.className = "rec-item";
+                    div.innerText = `▶ ${item.videoId} (score ${item.score.toFixed(2)})`;
+                    div.onclick = () => playVideo(item.videoId);
+                    recommendationList.appendChild(div);
+                });
+            });
+    }
+
+    // 🔹 VIDEO EVENTS
+    videoPlayer.addEventListener("pause", sendWatchEvent);
+    videoPlayer.addEventListener("ended", sendWatchEvent);
+
+    // 🔹 INITIAL LOAD
+    loadAllVideos();
+    loadRecommendations();
+
+</script>
+
+</body>
+</html>
