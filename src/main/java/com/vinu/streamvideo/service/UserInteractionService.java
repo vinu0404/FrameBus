@@ -7,7 +7,7 @@ import java.util.List;
 
 public interface UserInteractionService {
 
-    void saveWatchEvent(String userId, WatchEventRequestDTO dto);
+    void saveWatchEvent(WatchEventRequestDTO dto);
 
     List<RecommendationResponseDTO> recommendVideos(String userId);
 }

@@ -31,9 +31,9 @@ public class UserInteractionServiceImpl implements UserInteractionService {
     }
 
     @Override
-    public void saveWatchEvent(String userId, WatchEventRequestDTO dto) {
+    public void saveWatchEvent(WatchEventRequestDTO dto) {
         UserWatchHistory history = UserWatchHistory.builder()
-                .userId(userId)
+                .userId(dto.getUserId())
                 .videoId(dto.getVideoId())
                 .watchDurationSeconds(dto.getWatchDurationSeconds())
                 .watchedAt(Instant.now())

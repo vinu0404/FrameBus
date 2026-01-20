@@ -9,6 +9,7 @@ import lombok.*;
 @Builder
 public class WatchEventRequestDTO {
 
+    private String userId;
     private String videoId;
     private Long watchDurationSeconds;
 }

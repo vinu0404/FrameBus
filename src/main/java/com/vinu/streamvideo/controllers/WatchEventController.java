@@ -3,7 +3,6 @@ package com.vinu.streamvideo.controllers;
 import com.vinu.streamvideo.dto.RecommendationResponseDTO;
 import com.vinu.streamvideo.dto.WatchEventRequestDTO;
 import com.vinu.streamvideo.service.UserInteractionService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -20,10 +19,10 @@ public class WatchEventController {
 
     @PostMapping("/watchEvent")
     public ResponseEntity<Void> recordWatchEvent(
-            @RequestHeader("User-Id") String userId,
             @RequestBody WatchEventRequestDTO dto
     ) {
-        interactionService.saveWatchEvent(userId, dto);
+
+        interactionService.saveWatchEvent(dto);
         return ResponseEntity.ok().build();
     }
 

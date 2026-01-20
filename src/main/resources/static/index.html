@@ -11,39 +11,28 @@
             color: #eee;
             padding: 20px;
         }
-
-        h1, h2 {
-            color: #00d1b2;
-        }
-
-        select {
+        h1, h2 { color: #00d1b2; }
+        select, button {
             width: 100%;
             padding: 8px;
             margin-bottom: 10px;
         }
-
         .container {
             display: flex;
             gap: 20px;
         }
-
-        .player {
-            flex: 3;
-        }
-
+        .player { flex: 3; }
         .recommendations {
             flex: 1;
             background: #1c1c1c;
             padding: 10px;
             border-radius: 6px;
         }
-
         video {
             width: 100%;
             max-height: 480px;
             background: black;
         }
-
         .rec-item {
             padding: 8px;
             margin-bottom: 6px;
@@ -51,7 +40,6 @@
             cursor: pointer;
             border-radius: 4px;
         }
-
         .rec-item:hover {
             background: #00d1b2;
             color: black;
@@ -62,20 +50,19 @@
 
 <h1>🎥 StreamVideo Platform</h1>
 
-<!-- VIDEO SELECT DROPDOWN -->
-<label for="videoSelect">Select a video:</label>
+<label>Select a video:</label>
 <select id="videoSelect">
     <option value="">-- Select a video --</option>
 </select>
 
+<button onclick="loadRecommendations()">📌 Recommend Videos</button>
+
 <div class="container">
-    <!-- VIDEO PLAYER -->
     <div class="player">
         <video id="videoPlayer" controls></video>
         <p id="status"></p>
     </div>
 
-    <!-- RECOMMENDATIONS -->
     <div class="recommendations">
         <h2>Recommended</h2>
         <div id="recommendationList"></div>
@@ -84,7 +71,7 @@
 
 <script>
     const API_BASE = "http://localhost:8080/api";
-    const USER_ID = "u1"; // demo user
+    const USER_ID = "u1";
 
     const videoSelect = document.getElementById("videoSelect");
     const videoPlayer = document.getElementById("videoPlayer");
@@ -92,67 +79,68 @@
     const recommendationList = document.getElementById("recommendationList");
 
     let currentVideoId = null;
-    let watchStartTime = null;
+    let playStartTimestamp = null;
+    let eventSent = false;
 
-    // 🔹 LOAD ALL VIDEOS INTO DROPDOWN
-    function loadAllVideos() {
-        fetch(`${API_BASE}/videos/getAllVideos`)
-            .then(res => res.json())
-            .then(videos => {
-                videos.forEach(video => {
-                    const option = document.createElement("option");
-                    option.value = video.videoId;
-                    option.textContent = `${video.title} (${video.category})`;
-                    videoSelect.appendChild(option);
-                });
+    // Load all videos
+    fetch(`${API_BASE}/videos/getAllVideos`)
+        .then(res => res.json())
+        .then(videos => {
+            videos.forEach(v => {
+                const opt = document.createElement("option");
+                opt.value = v.videoId;
+                opt.textContent = v.title;
+                videoSelect.appendChild(opt);
             });
-    }
-
-    // 🔹 PLAY SELECTED VIDEO
-    videoSelect.addEventListener("change", () => {
-        const videoId = videoSelect.value;
-        if (!videoId) return;
-
-        playVideo(videoId);
-    });
-
-    function playVideo(videoId) {
-        sendWatchEvent(); // send previous if any
-
-        currentVideoId = videoId;
-        watchStartTime = Date.now();
-
-        videoPlayer.src = `${API_BASE}/videos/watchSpecificVideo/${videoId}`;
-        videoPlayer.play();
-
-        status.innerText = "Playing video: " + videoId;
-    }
-
-    // 🔹 SEND WATCH EVENT
-    function sendWatchEvent() {
-        if (!currentVideoId || !watchStartTime) return;
-
-        const watchedSeconds = Math.floor((Date.now() - watchStartTime) / 1000);
-
-        fetch(`${API_BASE}/watchEvent`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "User-Id": USER_ID
-            },
-            body: JSON.stringify({
-                videoId: currentVideoId,
-                watchDurationSeconds: watchedSeconds
-            })
-        }).then(() => {
-            console.log("Watch event sent:", watchedSeconds);
-            loadRecommendations();
         });
 
-        watchStartTime = null;
+    // Video selection
+    videoSelect.addEventListener("change", () => {
+        flushWatchEvent();
+
+        currentVideoId = videoSelect.value;
+        if (!currentVideoId) return;
+
+        eventSent = false;
+        playStartTimestamp = Date.now();
+
+        videoPlayer.src =
+            `${API_BASE}/videos/watchSpecificVideo/${currentVideoId}`;
+        videoPlayer.play();
+
+        status.innerText = "Playing " + currentVideoId;
+    });
+
+    // 🔥 SEND WATCH EVENT (CORRECT)
+    function flushWatchEvent() {
+        if (!currentVideoId || !playStartTimestamp || eventSent) return;
+
+        const watchedSeconds =
+            Math.floor((Date.now() - playStartTimestamp) / 1000);
+
+        if (watchedSeconds <= 0) return;
+
+        const payload = JSON.stringify({
+            userId: USER_ID,
+            videoId: currentVideoId,
+            watchDurationSeconds: watchedSeconds
+        });
+
+        navigator.sendBeacon(
+            `${API_BASE}/watchEvent`,
+            new Blob([payload], { type: "application/json" })
+        );
+
+        eventSent = true;
+        playStartTimestamp = null;
     }
 
-    // 🔹 LOAD RECOMMENDATIONS
+    // Lifecycle hooks
+    videoPlayer.addEventListener("pause", flushWatchEvent);
+    videoPlayer.addEventListener("ended", flushWatchEvent);
+    window.addEventListener("pagehide", flushWatchEvent);
+
+    // Manual recommend trigger
     function loadRecommendations() {
         fetch(`${API_BASE}/recommend/${USER_ID}`)
             .then(res => res.json())
@@ -160,28 +148,23 @@
                 recommendationList.innerHTML = "";
 
                 if (data.length === 0) {
-                    recommendationList.innerHTML = "<p>No recommendations yet</p>";
+                    recommendationList.innerHTML = "<p>No recommendations</p>";
                     return;
                 }
 
                 data.forEach(item => {
                     const div = document.createElement("div");
                     div.className = "rec-item";
-                    div.innerText = `▶ ${item.videoId} (score ${item.score.toFixed(2)})`;
-                    div.onclick = () => playVideo(item.videoId);
+                    div.innerText =
+                        `▶ ${item.videoId} (score ${item.score.toFixed(2)})`;
+                    div.onclick = () => {
+                        videoSelect.value = item.videoId;
+                        videoSelect.dispatchEvent(new Event("change"));
+                    };
                     recommendationList.appendChild(div);
                 });
             });
     }
-
-    // 🔹 VIDEO EVENTS
-    videoPlayer.addEventListener("pause", sendWatchEvent);
-    videoPlayer.addEventListener("ended", sendWatchEvent);
-
-    // 🔹 INITIAL LOAD
-    loadAllVideos();
-    loadRecommendations();
-
 </script>
 
 </body>
